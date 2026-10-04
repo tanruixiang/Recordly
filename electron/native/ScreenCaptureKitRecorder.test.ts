@@ -88,9 +88,9 @@ describe("ScreenCaptureKitRecorder window capture", () => {
 
 	it("refreshes the crop and capture display while the window moves or resizes", () => {
 		expect(recorderSource).toContain(
-			"guard let display = Self.captureDisplay(for: window.frame",
+			"targetDisplay = Self.captureDisplay(for: window.frame",
 		);
-		expect(recorderSource).toContain("try await activeStream.updateContentFilter(filter)");
+		expect(recorderSource).toContain("try await self.stream?.updateContentFilter(filter)");
 		expect(recorderSource).toContain("self.windowCropRect = cropRect");
 	});
 });

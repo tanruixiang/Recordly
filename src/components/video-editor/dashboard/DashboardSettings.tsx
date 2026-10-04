@@ -5,13 +5,17 @@ import { Switch } from "@/components/ui/switch";
 import { supportsHudCaptureProtection } from "@/lib/hudCaptureProtection";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
+import { useScopedT } from "@/contexts/I18nContext";
 export const DashboardSettingsContext = createContext<ReactNode>(null);
 export function DashboardSettings({ onImportFile }: { onImportFile: () => Promise<void> }) {
+	const t = useScopedT("settings");
 	const settingsContent = useContext(DashboardSettingsContext);
 	const [directory, setDirectory] = useState("");
 	const [recordings, setRecordings] = useState("");
 	const [hideHud, setHideHud] = useState(true);
 	const [captureSupported, setCaptureSupported] = useState(false);
+	const [hideCodexOverlay, setHideCodexOverlay] = useState(false);
+	const [codexOverlaySupported, setCodexOverlaySupported] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const run = async (action: () => Promise<void>) => {
 		setBusy(true);
@@ -29,12 +33,15 @@ export function DashboardSettings({ onImportFile }: { onImportFile: () => Promis
 			window.electronAPI.getRecordingsDirectory(),
 			window.electronAPI.getHudOverlayCaptureProtection(),
 			window.electronAPI.getPlatform(),
+			window.electronAPI.getRecordingPreferences(),
 		])
-			.then(([directory, protection, platform]) => {
+			.then(([directory, protection, platform, preferences]) => {
 				if (!active) return;
 				if (directory.success) setRecordings(directory.path);
 				if (protection.success) setHideHud(protection.enabled);
 				setCaptureSupported(supportsHudCaptureProtection(platform));
+				setCodexOverlaySupported(platform === "darwin");
+				if (preferences.success) setHideCodexOverlay(preferences.hideCodexOverlay === true);
 			})
 			.catch((error) => toast.error(String(error)));
 		return () => {
@@ -105,6 +112,28 @@ export function DashboardSettings({ onImportFile }: { onImportFile: () => Promis
 										if (!result.success)
 											throw Error("Could not update capture protection");
 										setHideHud(result.enabled);
+									})
+								}
+							/>
+						</SettingsRow>
+					)}
+					{codexOverlaySupported && (
+						<SettingsRow
+							title={t("recording.hideCodexOverlay")}
+							description={t("recording.hideCodexOverlayDescription")}
+						>
+							<Switch
+								aria-label={t("recording.hideCodexOverlay")}
+								checked={hideCodexOverlay}
+								disabled={busy}
+								onCheckedChange={(enabled) =>
+									void run(async () => {
+										const result =
+											await window.electronAPI.setRecordingPreferences({
+												hideCodexOverlay: enabled,
+											});
+										if (!result.success) throw Error(t("recording.saveFailed"));
+										setHideCodexOverlay(enabled);
 									})
 								}
 							/>

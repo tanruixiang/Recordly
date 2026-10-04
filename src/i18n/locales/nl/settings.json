@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "Codex-overlay verbergen in opnamen",
+		"hideCodexOverlayDescription": "Geldt voor nieuwe opnamen. De overlay blijft zichtbaar op je scherm.",
+		"saveFailed": "De opname-instelling kon niet worden bijgewerkt."
+	},
 	"zoom": {
 		"level": "Zoomniveau",
 		"selectRegion": "Selecteer een zoomgebied om aan te passen",

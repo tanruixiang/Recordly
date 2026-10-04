@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "녹화에서 Codex 오버레이 숨기기",
+		"hideCodexOverlayDescription": "새 녹화에 적용됩니다. 화면에서는 오버레이가 계속 표시됩니다.",
+		"saveFailed": "녹화 설정을 업데이트할 수 없습니다."
+	},
 	"zoom": {
 		"level": "확대 레벨",
 		"selectRegion": "조정할 확대 구간을 선택하세요",

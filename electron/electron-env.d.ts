@@ -249,6 +249,7 @@ interface Window {
 		startNativeScreenRecording: (
 			source: ProcessedDesktopSource,
 			options?: {
+				hideCodexOverlay?: boolean;
 				capturesSystemAudio?: boolean;
 				capturesMicrophone?: boolean;
 				microphoneDeviceId?: string;
@@ -1011,9 +1012,10 @@ interface Window {
 		getAnnouncements: () => Promise<unknown | null>;
 		/** Hide the OS cursor before browser capture starts. */
 		hideOsCursor: () => Promise<{ success: boolean }>;
-		/** Recording preferences (mic, system audio, webcam) */
+		/** Recording preferences (capture overlays, mic, system audio, webcam) */
 		getRecordingPreferences: () => Promise<{
 			success: boolean;
+			hideCodexOverlay: boolean;
 			microphoneEnabled: boolean;
 			microphoneDeviceId?: string;
 			systemAudioEnabled: boolean;
@@ -1025,6 +1027,7 @@ interface Window {
 			requestedBrowserMicrophoneProfile: string | null;
 		}>;
 		setRecordingPreferences: (prefs: {
+			hideCodexOverlay?: boolean;
 			microphoneEnabled?: boolean;
 			microphoneDeviceId?: string;
 			systemAudioEnabled?: boolean;

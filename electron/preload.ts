@@ -546,6 +546,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	startNativeScreenRecording: (
 		source: ProcessedDesktopSource,
 		options?: {
+			hideCodexOverlay?: boolean;
 			capturesSystemAudio?: boolean;
 			capturesMicrophone?: boolean;
 			microphoneDeviceId?: string;
@@ -1097,6 +1098,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	getRecordingPreferences: () => ipcRenderer.invoke("get-recording-preferences"),
 	getRecordingAudioLabConfig: () => ipcRenderer.invoke("get-recording-audio-lab-config"),
 	setRecordingPreferences: (prefs: {
+		hideCodexOverlay?: boolean;
 		microphoneEnabled?: boolean;
 		microphoneDeviceId?: string;
 		systemAudioEnabled?: boolean;

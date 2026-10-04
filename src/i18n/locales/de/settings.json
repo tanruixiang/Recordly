@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "Codex-Overlay in Aufnahmen ausblenden",
+		"hideCodexOverlayDescription": "Gilt für neue Aufnahmen. Das Overlay bleibt auf dem Bildschirm sichtbar.",
+		"saveFailed": "Die Aufnahmeeinstellung konnte nicht aktualisiert werden."
+	},
 	"zoom": {
 		"level": "Zoomstufe",
 		"selectRegion": "Zoombereich zum Anpassen auswählen",

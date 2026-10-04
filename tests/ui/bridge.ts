@@ -3,6 +3,12 @@ export async function installDesktopBridge(page: Page, videoFixture = "preview.m
 	await page.addInitScript((videoFixture) => {
 		const success = async () => ({ success: true });
 		const subscribe = () => () => undefined;
+		const recordingPreferences = {
+			hideCodexOverlay: false,
+			microphoneEnabled: false,
+			webcamEnabled: false,
+			systemAudioEnabled: true,
+		};
 		const source = {
 			id: "screen:1:0",
 			name: "Built-in Display",
@@ -121,11 +127,12 @@ export async function installDesktopBridge(page: Page, videoFixture = "preview.m
 				setCountdownDelay: success,
 				getRecordingPreferences: async () => ({
 					success: true,
-					microphoneEnabled: false,
-					webcamEnabled: false,
-					systemAudioEnabled: true,
+					...recordingPreferences,
 				}),
-				setRecordingPreferences: success,
+				setRecordingPreferences: async (preferences: Record<string, unknown>) => {
+					Object.assign(recordingPreferences, preferences);
+					return { success: true };
+				},
 				onStopRecordingFromTray: subscribe,
 				onRecordingStateChanged: subscribe,
 				onRecordingInterrupted: subscribe,

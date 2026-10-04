@@ -9,6 +9,7 @@ export type SelectedSource = {
 };
 
 export type NativeMacRecordingOptions = {
+	hideCodexOverlay?: boolean;
 	capturesSystemAudio?: boolean;
 	capturesMicrophone?: boolean;
 	microphoneDeviceId?: string;

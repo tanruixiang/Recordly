@@ -20,6 +20,7 @@ struct CaptureConfig: Codable {
 	let microphoneLabel: String?
 	let microphoneOutputPath: String?
 	let excludedProcessIds: [Int32]?
+	let hideCodexOverlay: Bool?
 }
 
 let targetCaptureFPS = 60
@@ -40,8 +41,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var videoInput: AVAssetWriterInput?
 	private var videoPixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
 	private var windowCropRect: CGRect?
-	private var windowCropDisplayId: CGDirectDisplayID?
+	private var captureDisplayId: CGDirectDisplayID?
 	private var excludedProcessIds = Set<Int32>()
+	private var hideCodexOverlay = false
+	private var activeExcludedApplicationIds = Set<Int32>()
 	private var lastCroppedPixelBuffer: CVPixelBuffer?
 	private let imageContext = CIContext(options: [.cacheIntermediates: false])
 	private var systemAudioWriter: AVAssetWriter?
@@ -69,7 +72,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var outputURL: URL?
 	private var microphoneOutputURL: URL?
 	private var trackedWindowId: UInt32?
-	private var windowValidationTask: Task<Void, Never>?
+	private var contentValidationTask: Task<Void, Never>?
 	private var isFinalizing = false
 	private var interactiveStopParticipated = false
 	private var finalizationWaiters: [CheckedContinuation<CaptureFinalizationResult, Never>] = []
@@ -92,7 +95,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		let config = try JSONDecoder().decode(CaptureConfig.self, from: data)
-		let availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+		// Include the helper before its cursor window first becomes visible.
+		let availableContent = try await SCShareableContent.excludingDesktopWindows(
+			false, onScreenWindowsOnly: config.hideCodexOverlay != true
+		)
 		let streamConfig = SCStreamConfiguration()
 		capturesSystemAudio = config.capturesSystemAudio ?? false
 		capturesMicrophone = config.capturesMicrophone ?? false
@@ -126,13 +132,13 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		let outputWidth: Int
 		let outputHeight: Int
 		excludedProcessIds = Set(config.excludedProcessIds ?? [])
-		let excludedApplications = availableContent.applications.filter {
-			excludedProcessIds.contains($0.processID)
-		}
+		hideCodexOverlay = config.hideCodexOverlay ?? false
+		let excludedApplications = excludedApplications(in: availableContent)
+		activeExcludedApplicationIds = Set(excludedApplications.map(\.processID))
 
 		if let windowId = config.windowId {
 			trackedWindowId = windowId
-			guard let window = availableContent.windows.first(where: { $0.windowID == windowId }) else {
+			guard let window = availableContent.windows.first(where: { $0.windowID == windowId && $0.isOnScreen }) else {
 				throw NSError(domain: "RecordlyCapture", code: 3, userInfo: [NSLocalizedDescriptionKey: "Window not found"])
 			}
 
@@ -164,7 +170,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				width: captureRect.width / display.frame.width,
 				height: captureRect.height / display.frame.height
 			)
-			windowCropDisplayId = display.displayID
+			captureDisplayId = display.displayID
 			outputWidth = max(2, Int(captureRect.width) * scaleFactor) & ~1
 			outputHeight = max(2, Int(captureRect.height) * scaleFactor) & ~1
 			streamConfig.width = max(2, Int(display.frame.width) * scaleFactor)
@@ -173,7 +179,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		} else {
 			trackedWindowId = nil
 			windowCropRect = nil
-			windowCropDisplayId = nil
+			captureDisplayId = nil
 			let displayId = config.displayId ?? CGMainDisplayID()
 			guard let display = availableContent.displays.first(where: { $0.displayID == displayId }) else {
 				throw NSError(domain: "RecordlyCapture", code: 4, userInfo: [NSLocalizedDescriptionKey: "Display not found"])
@@ -184,6 +190,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				excludingApplications: excludedApplications,
 				exceptingWindows: []
 			)
+			captureDisplayId = display.displayID
 			let displayBounds = CGDisplayBounds(display.displayID)
 			let scaleFactor = ScreenCaptureRecorder.scaleFactor(for: display.displayID)
 			outputWidth = max(2, Int(displayBounds.width) * scaleFactor)
@@ -355,7 +362,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		firstSampleTime = .zero
 		lastVideoPresentationTime = .zero
 		lastVideoDuration = .zero
-		startWindowValidationIfNeeded()
+		startContentValidationIfNeeded()
 	}
 
 	func stopCapture() async throws -> String {
@@ -544,7 +551,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				self.isFinalizing = true
 				self.interactiveStopParticipated = interactive
 				self.isRecording = false
-				self.windowValidationTask = nil
+				self.contentValidationTask = nil
 				self.trackedWindowId = nil
 				self.finalizationWaiters.append(continuation)
 
@@ -641,7 +648,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		videoInput = nil
 		videoPixelBufferAdaptor = nil
 		windowCropRect = nil
-		windowCropDisplayId = nil
+		captureDisplayId = nil
 		excludedProcessIds.removeAll()
 		lastCroppedPixelBuffer = nil
 		systemAudioWriter = nil
@@ -853,15 +860,16 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		return supportsConfigSelector && supportsDeviceSelector && supportsOutputType
 	}
 
-	private func startWindowValidationIfNeeded() {
-		guard let trackedWindowId else {
-			windowValidationTask?.cancel()
-			windowValidationTask = nil
+	private func startContentValidationIfNeeded() {
+		let trackedWindowId = self.trackedWindowId
+		guard trackedWindowId != nil || hideCodexOverlay else {
+			contentValidationTask?.cancel()
+			contentValidationTask = nil
 			return
 		}
 
-		windowValidationTask?.cancel()
-		windowValidationTask = Task.detached(priority: .utility) { [weak self] in
+		contentValidationTask?.cancel()
+		contentValidationTask = Task.detached(priority: .utility) { [weak self] in
 			guard let self else { return }
 			while !Task.isCancelled {
 				try? await Task.sleep(nanoseconds: 500_000_000)
@@ -870,12 +878,17 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 				let availableContent: SCShareableContent
 				do {
-					availableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+					availableContent = try await SCShareableContent.excludingDesktopWindows(
+						false, onScreenWindowsOnly: !self.hideCodexOverlay
+					)
 				} catch {
 					continue
 				}
 
-				guard let window = availableContent.windows.first(where: { $0.windowID == trackedWindowId }) else {
+				let window = trackedWindowId.flatMap { id in
+					availableContent.windows.first(where: { $0.windowID == id && $0.isOnScreen })
+				}
+				if trackedWindowId != nil && window == nil {
 					print("WINDOW_UNAVAILABLE")
 					fflush(stdout)
 					let finalization = await self.finalizeCapture(interactive: false)
@@ -895,9 +908,34 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 					return
 				}
 
-				guard let display = Self.captureDisplay(for: window.frame, from: availableContent.displays) else {
-					continue
+				let targetDisplay: SCDisplay?
+				if let window {
+					targetDisplay = Self.captureDisplay(for: window.frame, from: availableContent.displays)
+				} else {
+					targetDisplay = availableContent.displays.first { $0.displayID == self.captureDisplayId }
 				}
+				guard let display = targetDisplay else { continue }
+
+				let excludedApplications = self.excludedApplications(in: availableContent)
+				let excludedApplicationIds = Set(excludedApplications.map(\.processID))
+				// Computer Use may start after recording. Refresh only when the helper appears
+				// or the captured window moves to another display, not on every poll.
+				if self.captureDisplayId != display.displayID
+					|| (self.hideCodexOverlay && self.activeExcludedApplicationIds != excludedApplicationIds) {
+					let filter = SCContentFilter(
+						display: display,
+						excludingApplications: excludedApplications,
+						exceptingWindows: []
+					)
+					do {
+						try await self.stream?.updateContentFilter(filter)
+						self.activeExcludedApplicationIds = excludedApplicationIds
+					} catch {
+						continue
+					}
+				}
+
+				guard let window else { continue }
 				let captureRect = window.frame.intersection(display.frame)
 				guard captureRect.width > 0, captureRect.height > 0 else { continue }
 				let cropRect = CGRect(
@@ -907,32 +945,24 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 					height: captureRect.height / display.frame.height
 				)
 
-				if self.windowCropDisplayId != display.displayID, let activeStream = self.stream {
-					let excludedApplications = availableContent.applications.filter {
-						self.excludedProcessIds.contains($0.processID)
-					}
-					let filter = SCContentFilter(
-						display: display,
-						excludingApplications: excludedApplications,
-						exceptingWindows: []
-					)
-					do {
-						try await activeStream.updateContentFilter(filter)
-					} catch {
-						continue
-					}
-				}
-
 				await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
 					self.queue.async {
 						if self.isRecording {
 							self.windowCropRect = cropRect
-							self.windowCropDisplayId = display.displayID
+							self.captureDisplayId = display.displayID
 						}
 						continuation.resume()
 					}
 				}
 			}
+		}
+	}
+
+	private func excludedApplications(in content: SCShareableContent) -> [SCRunningApplication] {
+		content.applications.filter {
+			excludedProcessIds.contains($0.processID)
+				// The cursor belongs to Codex's dedicated Computer Use helper, not the main app.
+				|| (hideCodexOverlay && $0.bundleIdentifier == "com.openai.sky.CUAService")
 		}
 	}
 

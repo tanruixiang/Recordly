@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "Masquer la superposition Codex dans les enregistrements",
+		"hideCodexOverlayDescription": "S’applique aux nouveaux enregistrements. La superposition reste visible à l’écran.",
+		"saveFailed": "Impossible de modifier le paramètre d’enregistrement."
+	},
 	"zoom": {
 		"level": "Niveau de zoom",
 		"selectRegion": "Sélectionnez une zone de zoom à ajuster",

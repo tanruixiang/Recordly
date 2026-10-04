@@ -9,6 +9,7 @@ test("editor mode never opens the camera and releases an active recorder preview
 		let visible: ((value: boolean) => void) | undefined;
 		window.electronAPI.getRecordingPreferences = async () => ({
 			success: true,
+			hideCodexOverlay: false,
 			webcamEnabled: true,
 			microphoneEnabled: false,
 			systemAudioEnabled: false,
