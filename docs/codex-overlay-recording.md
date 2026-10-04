@@ -1,6 +1,10 @@
 # Hide the Codex overlay in recordings
 
-The macOS recording setting **Hide Codex overlay in recordings** excludes the Codex Computer Use helper from the captured video. It is off by default and applies to new recordings. The overlay remains visible on the user's screen.
+The macOS recording setting **Hide Codex overlay in recordings** excludes the Codex Computer Use helper's virtual cursor and glow from the captured video. It is off by default and applies to new recordings. The overlay remains visible on the user's screen. The macOS-owned **Computer Use** sharing indicator remains in the tested recordings; removing that indicator is not part of this feature.
+
+**Where to enable it.** Open Home → Settings → Recording on macOS. The image below comes from the browser UI test with a mocked desktop bridge. It demonstrates the setting and its enabled state, not native capture. The same setting was also checked in the isolated packaged app.
+
+![Recording settings with Hide Codex overlay in recordings enabled](images/codex-overlay-setting.png)
 
 **Implementation.** Recordly's window mode captures a display and crops it to the selected window. Selecting a window therefore does not isolate it from another application's overlay. This change adds an exclusion to the ScreenCaptureKit filter used by both display and window recording.
 
@@ -37,6 +41,8 @@ The 500 ms polling interval is not a guaranteed removal deadline: enumeration, s
 
 **Packaged application acceptance.** An isolated arm64 app was built with Electron 43.4.1 (within `^43.1.0`), verified with strict ad-hoc signature checks, and opened on the desktop. Its setting defaulted off and persisted `true` after enabling. It uses a separate bundle ID/data directory and disables updates. App-level recording awaits macOS screen-recording authorization for this separate application. Direct final-helper pause/resume/stop and saved-video decoding passed; these do not replace the pending app-level recording or audio checks.
 
+**Separate editor/export check.** A later test imported six seconds of an existing native recording into that isolated app and exported baseline, crop, and mask projects through Publish → Local → MP4. All three 30 fps, 180-frame files decoded successfully. These were silent, fixed-window fixtures with synthetic cursor metadata and `zoomClassicMode=true`. The default rendering mode produced only the background in this local test and remains unresolved. The successful exports therefore validate only that limited editor path; they do not complete packaged-app recording acceptance or demonstrate removal of the sharing indicator by this capture filter. No crop, mask, or renderer changes are included in this PR.
+
 **Recorded evidence.** These are saved-video frames from a controlled test window (not live screenshots). The before frame contains the virtual cursor and glow; the after frame is from the final compiled recorder.
 
 ![Before](images/codex-overlay-before.png)
@@ -53,4 +59,4 @@ The 500 ms polling interval is not a guaranteed removal deadline: enumeration, s
 
 **Evidence and limits.** Local clips and fixture runs are under `work/ablation/`. The real capture stills are `real-baseline.png`, `real-final.png`, and `real-display-crop.png`; the last is cropped from a display recording. Fixture comparisons are `late-static.png`, `late-dynamic.png`, `hidden-static-visible.png`, and `hidden-static-all.png`. In the hidden-fixture comparison, the colored fixture is the measured overlay; a real Codex cursor elsewhere in that frame is not evidence about the fixture filter.
 
-The feature is macOS-only and depends on the observed helper identity. The x86_64 build has not been run on Intel hardware. macOS may retain its own gray privacy or screen-sharing indicator. This filter does not remove pixels from existing recordings or promise zero transient frames when a new helper starts late.
+The feature is macOS-only and depends on the observed Codex helper identity. Other agents, including Claude Code, are not covered by this implementation. The x86_64 build has not been run on Intel hardware. The macOS-owned gray **Computer Use** sharing indicator remained in the tested recordings. This filter does not remove pixels from existing recordings or promise zero transient frames when a new helper starts late.
