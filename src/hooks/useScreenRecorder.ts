@@ -1711,9 +1711,14 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
 			let nativeWindowsCaptureStartFailed = false;
 
 			if (useNativeCapture) {
+				// Settings can change while the recording HUD remains mounted.
+				const recordingPreferences = useNativeMacScreenCapture
+					? await window.electronAPI.getRecordingPreferences()
+					: null;
 				const nativeResult = await window.electronAPI.startNativeScreenRecording(
 					selectedSource,
 					{
+						hideCodexOverlay: recordingPreferences?.hideCodexOverlay === true,
 						capturesSystemAudio: systemAudioEnabled,
 						capturesMicrophone: microphoneEnabled,
 						microphoneDeviceId,

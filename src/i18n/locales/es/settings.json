@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "Ocultar la superposición de Codex en las grabaciones",
+		"hideCodexOverlayDescription": "Se aplica a las nuevas grabaciones. La superposición sigue visible en la pantalla.",
+		"saveFailed": "No se pudo actualizar la configuración de grabación."
+	},
 	"zoom": {
 		"level": "Nivel de zoom",
 		"selectRegion": "Selecciona una región de zoom para ajustar",

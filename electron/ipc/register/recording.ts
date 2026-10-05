@@ -731,6 +731,7 @@ export function registerRecordingHandlers(
 				const config: Record<string, unknown> = {
 					fps: 60,
 					outputPath,
+					hideCodexOverlay: options?.hideCodexOverlay === true,
 					capturesSystemAudio,
 					capturesMicrophone,
 				};

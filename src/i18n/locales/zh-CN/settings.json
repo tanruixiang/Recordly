@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "不录入 Codex 操作浮层",
+		"hideCodexOverlayDescription": "仅影响新录制的视频；屏幕上的操作浮层仍然可见。",
+		"saveFailed": "无法更新录制设置。"
+	},
 	"zoom": {
 		"level": "缩放级别",
 		"selectRegion": "选择缩放区域以调整",

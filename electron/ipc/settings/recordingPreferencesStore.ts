@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { parseJsonWithByteOrderMark } from "../utils";
 
 export interface RecordingPreferencesPatch {
+	hideCodexOverlay?: boolean;
 	microphoneEnabled?: boolean;
 	microphoneDeviceId?: string;
 	systemAudioEnabled?: boolean;

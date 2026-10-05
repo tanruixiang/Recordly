@@ -67,6 +67,7 @@ test("New recording mode starts the webcam with an editor still open and release
 		};
 		window.electronAPI.getRecordingPreferences = async () => ({
 			success: true,
+			hideCodexOverlay: false,
 			microphoneEnabled: false,
 			webcamEnabled: true,
 			systemAudioEnabled: false,

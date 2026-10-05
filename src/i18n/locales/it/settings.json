@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "Nascondi la sovrapposizione di Codex nelle registrazioni",
+		"hideCodexOverlayDescription": "Si applica alle nuove registrazioni. La sovrapposizione rimane visibile sullo schermo.",
+		"saveFailed": "Impossibile aggiornare l’impostazione di registrazione."
+	},
 	"zoom": {
 		"level": "Livello di zoom",
 		"selectRegion": "Seleziona una regione di zoom da modificare",

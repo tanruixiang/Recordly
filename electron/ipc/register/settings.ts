@@ -137,6 +137,7 @@ export function registerSettingsHandlers() {
 			const parsed = await recordingPreferencesStore.read();
 			return {
 				success: true,
+				hideCodexOverlay: parsed.hideCodexOverlay === true,
 				microphoneEnabled: parsed.microphoneEnabled === true,
 				microphoneDeviceId:
 					typeof parsed.microphoneDeviceId === "string"
@@ -150,6 +151,7 @@ export function registerSettingsHandlers() {
 		} catch {
 			return {
 				success: true,
+				hideCodexOverlay: false,
 				microphoneEnabled: false,
 				microphoneDeviceId: undefined,
 				systemAudioEnabled: false,

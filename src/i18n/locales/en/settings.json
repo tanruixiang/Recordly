@@ -1,4 +1,9 @@
 {
+	"recording": {
+		"hideCodexOverlay": "Hide Codex overlay in recordings",
+		"hideCodexOverlayDescription": "Applies to new recordings. The overlay remains visible on your screen.",
+		"saveFailed": "Could not update the recording setting."
+	},
 	"updates": {
 		"title": "Updates",
 		"experimental": "Experimental updates",
