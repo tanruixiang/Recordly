@@ -23,6 +23,17 @@ struct CaptureConfig: Codable {
 	let hideCodexOverlay: Bool?
 }
 
+protocol OverlayExclusionStrategy {
+	func shouldExclude(application: SCRunningApplication) -> Bool
+}
+
+struct CodexOverlayExclusionStrategy: OverlayExclusionStrategy {
+	func shouldExclude(application: SCRunningApplication) -> Bool {
+		// Only the Computer Use helper owns the cursor/glow; retain the main app.
+		application.bundleIdentifier == "com.openai.sky.CUAService"
+	}
+}
+
 let targetCaptureFPS = 60
 let maxInlineAudioTailExtension = CMTime(seconds: 2.0, preferredTimescale: 600)
 /// How long finalization waits for a backed-up encoder queue before giving up on
@@ -43,7 +54,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	private var windowCropRect: CGRect?
 	private var captureDisplayId: CGDirectDisplayID?
 	private var excludedProcessIds = Set<Int32>()
-	private var hideCodexOverlay = false
+	private var overlayExclusionStrategies: [any OverlayExclusionStrategy] = []
 	private var activeExcludedApplicationIds = Set<Int32>()
 	private var lastCroppedPixelBuffer: CVPixelBuffer?
 	private let imageContext = CIContext(options: [.cacheIntermediates: false])
@@ -95,9 +106,11 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		}
 
 		let config = try JSONDecoder().decode(CaptureConfig.self, from: data)
-		// Include the helper before its cursor window first becomes visible.
+		overlayExclusionStrategies = config.hideCodexOverlay == true
+			? [CodexOverlayExclusionStrategy()] : []
+		// Include helpers before their overlay windows first become visible.
 		let availableContent = try await SCShareableContent.excludingDesktopWindows(
-			false, onScreenWindowsOnly: config.hideCodexOverlay != true
+			false, onScreenWindowsOnly: overlayExclusionStrategies.isEmpty
 		)
 		let streamConfig = SCStreamConfiguration()
 		capturesSystemAudio = config.capturesSystemAudio ?? false
@@ -132,7 +145,6 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 		let outputWidth: Int
 		let outputHeight: Int
 		excludedProcessIds = Set(config.excludedProcessIds ?? [])
-		hideCodexOverlay = config.hideCodexOverlay ?? false
 		let excludedApplications = excludedApplications(in: availableContent)
 		activeExcludedApplicationIds = Set(excludedApplications.map(\.processID))
 
@@ -862,7 +874,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 	private func startContentValidationIfNeeded() {
 		let trackedWindowId = self.trackedWindowId
-		guard trackedWindowId != nil || hideCodexOverlay else {
+		guard trackedWindowId != nil || !overlayExclusionStrategies.isEmpty else {
 			contentValidationTask?.cancel()
 			contentValidationTask = nil
 			return
@@ -879,7 +891,7 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 				let availableContent: SCShareableContent
 				do {
 					availableContent = try await SCShareableContent.excludingDesktopWindows(
-						false, onScreenWindowsOnly: !self.hideCodexOverlay
+						false, onScreenWindowsOnly: self.overlayExclusionStrategies.isEmpty
 					)
 				} catch {
 					continue
@@ -918,10 +930,10 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 
 				let excludedApplications = self.excludedApplications(in: availableContent)
 				let excludedApplicationIds = Set(excludedApplications.map(\.processID))
-				// Computer Use may start after recording. Refresh only when the helper appears
+				// Overlay helpers may start after recording. Refresh only when the set changes
 				// or the captured window moves to another display, not on every poll.
 				if self.captureDisplayId != display.displayID
-					|| (self.hideCodexOverlay && self.activeExcludedApplicationIds != excludedApplicationIds) {
+					|| (!self.overlayExclusionStrategies.isEmpty && self.activeExcludedApplicationIds != excludedApplicationIds) {
 					let filter = SCContentFilter(
 						display: display,
 						excludingApplications: excludedApplications,
@@ -959,10 +971,9 @@ final class ScreenCaptureRecorder: NSObject, SCStreamOutput, SCStreamDelegate {
 	}
 
 	private func excludedApplications(in content: SCShareableContent) -> [SCRunningApplication] {
-		content.applications.filter {
-			excludedProcessIds.contains($0.processID)
-				// The cursor belongs to Codex's dedicated Computer Use helper, not the main app.
-				|| (hideCodexOverlay && $0.bundleIdentifier == "com.openai.sky.CUAService")
+		content.applications.filter { application in
+			excludedProcessIds.contains(application.processID)
+				|| overlayExclusionStrategies.contains { $0.shouldExclude(application: application) }
 		}
 	}
 
